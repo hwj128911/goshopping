@@ -1,86 +1,113 @@
 package models
 
 import (
-	"errors"
 	"strconv"
 	"time"
-)
 
-var (
-	UserList map[string]*User
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/thewinds/goshopping/server/com"
 )
-
-func init() {
-	UserList = make(map[string]*User)
-	u := User{"user_11111", "astaxie", "11111", Profile{"male", 20, "Singapore", "astaxie@gmail.com"}}
-	UserList["user_11111"] = &u
-}
 
 type User struct {
-	Id       string
-	Username string
-	Password string
-	Profile  Profile
+	Id          int64
+	Username    string
+	Password    string
+	Phone       string
+	Iconpath    string
+	Email       string
+	Bonuspoints int
 }
 
-type Profile struct {
-	Gender  string
-	Age     int
-	Address string
-	Email   string
-}
-
-func AddUser(u User) string {
-	u.Id = "user_" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	UserList[u.Id] = &u
-	return u.Id
-}
-
-func GetUser(uid string) (u *User, err error) {
-	if u, ok := UserList[uid]; ok {
-		return u, nil
+//AddUser 根据用户结构添加用户
+func AddUser(u User) error {
+	if has, err := x.Where("phone=?", u.Phone).Get(new(User)); err == nil {
+		if has {
+			return com.NewErr("添加用户失败,用户已存在", nil)
+		}
+	} else {
+		return com.NewErr("添加用户失败,查询失败", err)
 	}
-	return nil, errors.New("User not exists")
-}
 
-func GetAllUsers() map[string]*User {
-	return UserList
-}
-
-func UpdateUser(uid string, uu *User) (a *User, err error) {
-	if u, ok := UserList[uid]; ok {
-		if uu.Username != "" {
-			u.Username = uu.Username
-		}
-		if uu.Password != "" {
-			u.Password = uu.Password
-		}
-		if uu.Profile.Age != 0 {
-			u.Profile.Age = uu.Profile.Age
-		}
-		if uu.Profile.Address != "" {
-			u.Profile.Address = uu.Profile.Address
-		}
-		if uu.Profile.Gender != "" {
-			u.Profile.Gender = uu.Profile.Gender
-		}
-		if uu.Profile.Email != "" {
-			u.Profile.Email = uu.Profile.Email
-		}
-		return u, nil
+	u.Id = 0
+	u.Bonuspoints = 10
+	u.Username = "user_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	_, err := x.Insert(u)
+	if err != nil {
+		return com.NewErr("添加用户失败,插入记录失败", err)
 	}
-	return nil, errors.New("User Not Exist")
+	return nil
 }
 
-func Login(username, password string) bool {
-	for _, u := range UserList {
-		if u.Username == username && u.Password == password {
-			return true
-		}
+//DeleteUser 根据用户Id删除用户
+func DeleteUser(uid int64) error {
+	n, err := x.Id(uid).Delete(new(User))
+	if err != nil {
+		return com.NewErr("删除用户失败", err)
 	}
-	return false
+	if n == 0 {
+		return com.NewErr("删除用户失败,用户不存在", nil)
+	}
+	return nil
 }
 
-func DeleteUser(uid string) {
-	delete(UserList, uid)
+//GetUser 根据用户Id获取用户
+func GetUser(uid int64) (u *User, err error) {
+	user := new(User)
+	ok, err := x.Id(uid).Get(user)
+	if err != nil {
+		return nil, com.NewErr("获取用户失败", err)
+	}
+	if ok == false {
+		return nil, com.NewErr("用户不存在", err)
+	}
+	return user, nil
+}
+
+//GetAllUsers 获取所有用户
+func GetAllUsers() []User {
+	users := make([]User, 0)
+	x.Find(&users)
+	return users
+}
+
+//UpdateUser 更新用户
+func UpdateUser(u User) error {
+	user, err := GetUser(u.Id)
+	if err != nil {
+		return com.NewErr("更新用户失败", err)
+	}
+	if u.Bonuspoints != 0 {
+		user.Bonuspoints = u.Bonuspoints
+	}
+	if u.Email != "" {
+		user.Email = u.Email
+	}
+	if u.Iconpath != "" {
+		user.Iconpath = u.Iconpath
+	}
+	if u.Password != "" {
+		user.Password = u.Password
+	}
+	if u.Phone != "" {
+		user.Phone = u.Phone
+	}
+	if u.Username != "" {
+		user.Username = u.Username
+	}
+	_, err = x.Id(u.Id).Update(user)
+	if err != nil {
+		return com.NewErr("更新数据失败", err)
+	}
+	return nil
+}
+
+type Deliveryadress struct {
+	Id         int64
+	Uid        int64
+	Default    int //0非默认 1默认
+	Provinceid int64
+	Cityid     int64
+	Districtid int64
+	Adress     string
+	Phone      string
 }
